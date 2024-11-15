@@ -11,50 +11,28 @@ async function crawlPlayerInfo() {
         });
         const page = await browser.newPage();
         
+        // 웹사이트 접속
         await page.goto('https://statiz.sporki.com/team/?m=seasonBacknumber&t_code=7002&year=2024', {
             waitUntil: 'networkidle0',
             timeout: 30000
         });
 
-        // 페이지 로딩을 위한 대기
-        await wait(2000);
-        
-        // .item.away 요소가 로드될 때까지 대기
-        await page.waitForSelector('.item.away', { timeout: 10000 });
+        await wait(2000); // 페이지 로딩 대기
         
         const playerData = [];
-        const players = await page.$$('.item.away');
-        console.log(`발견된 선수 수: ${players.length}`);
         
-        for (let i = 0; i < players.length; i++) {
+        // item away 요소들 가져오기
+        const players = await page.$$('.item.away');
+        console.log(`총 ${players.length}명의 선수를 찾았습니다.`);
+        
+        for (const player of players) {
             try {
-                const player = players[i];
-                
-                if (!player) {
-                    console.log(`${i}번째 선수 요소를 찾을 수 없습니다.`);
-                    continue;
-                }
-
                 // 등번호 가져오기
-                let number;
-                try {
-                    number = await player.$eval('.name.t7002 .number', el => el.textContent.trim());
-                    console.log(`등번호 찾음: ${number}`);
-                } catch (error) {
-                    console.log(`등번호를 찾을 수 없습니다. 선수 ${i + 1}`);
-                    number = 'N/A';
-                }
-
-                // 선수 링크 찾기
-                let playerLink;
-                try {
-                    playerLink = await player.$('> a');
-                    console.log(`선수 링크 찾음: ${await (await playerLink.getProperty('href')).jsonValue()}`);
-                } catch (error) {
-                    console.log(`선수 ${i + 1}(${number})의 링크를 찾을 수 없습니다:`, error);
-                    continue;
-                }
-
+                const number = await player.$eval('.name.t7002 .number', el => el.textContent.trim());
+                console.log(`등번호 ${number} 처리 중...`);
+                
+                // 선수 링크 클릭
+                const playerLink = await player.$('a');
                 const [newPage] = await Promise.all([
                     new Promise(resolve => browser.once('targetcreated', target => resolve(target.page()))),
                     playerLink.click()
@@ -63,45 +41,43 @@ async function crawlPlayerInfo() {
                 await newPage.waitForSelector('.p_info', { timeout: 10000 });
                 await wait(1000);
                 
-                const basicInfo = await newPage.evaluate(() => {
-                    try {
-                        const pInfo = document.querySelector('.p_info');
-                        if (!pInfo) return null;
-                        
-                        const name = pInfo.querySelector('.name')?.textContent.trim().split(' (')[0] || 'N/A';
-                        const conInfo = Array.from(pInfo.querySelectorAll('.con span'))
-                            .map(span => span.textContent.trim());
-                        
-                        const detailInfo = Array.from(document.querySelectorAll('.man_info li'))
-                            .map(li => {
-                                const parts = li.textContent.trim().split(': ');
-                                return parts[1] || 'N/A';
-                            });
-
-                        return {
-                            name,
-                            team: conInfo[0] || 'N/A',
-                            position: conInfo[1] || 'N/A',
-                            throwHit: conInfo[2] || 'N/A',
-                            birth: detailInfo[0] || 'N/A',
-                            school: detailInfo[1] || 'N/A',
-                            draft: detailInfo[2] || 'N/A',
-                            activeYears: detailInfo[3] || 'N/A'
-                        };
-                    } catch (error) {
-                        console.error('데이터 추출 중 오류:', error);
-                        return null;
-                    }
+                // 선수 상세 정보 수집
+                const playerInfo = await newPage.evaluate(() => {
+                    // 기본 정보
+                    const pInfo = document.querySelector('.p_info');
+                    const name = pInfo.querySelector('.name').textContent.trim().split(' (')[0];
+                    const conSpans = pInfo.querySelectorAll('.con span');
+                    const team = conSpans[0].textContent.trim();
+                    const position = conSpans[1].textContent.trim();
+                    const throwHit = conSpans[2].textContent.trim();
+                    
+                    // 상세 정보
+                    const manInfo = document.querySelector('.man_info');
+                    const details = Array.from(manInfo.querySelectorAll('li')).map(li => {
+                        return li.textContent.split(' : ')[1].trim();
+                    });
+                    
+                    return {
+                        name,
+                        team,
+                        position,
+                        throwHit,
+                        birth: details[0],
+                        school: details[1],
+                        draft: details[2],
+                        activeYears: details[3]
+                    };
                 });
 
-                if (basicInfo) {
-                    playerData.push({
-                        number,
-                        ...basicInfo
-                    });
-                    console.log(`선수 정보 추가됨: ${basicInfo.name}`);
-                }
+                // 수집된 데이터를 배열에 추가
+                playerData.push({
+                    number,
+                    ...playerInfo
+                });
 
+                console.log(`${playerInfo.name} 선수 정보 추가 완료`);
+                
+                // 새 페이지 닫기
                 await newPage.close();
                 await wait(1500);
                 
@@ -111,8 +87,10 @@ async function crawlPlayerInfo() {
             }
         }
 
+        // 결과를 JSON 파일로 저장
         fs.writeFileSync('hanwha_players_info.json', JSON.stringify(playerData, null, 2), 'utf-8');
         console.log(`총 ${playerData.length}명의 선수 정보가 성공적으로 저장되었습니다.`);
+        
         await browser.close();
         
     } catch (error) {
