@@ -10,43 +10,26 @@ async function crawlPlayerInfo() {
         });
         const page = await browser.newPage();
         
-        // 웹사이트 접속
+        // JavaScript 콘솔 로그 보기
+        page.on('console', msg => console.log('페이지 로그:', msg.text()));
+        
         await page.goto('https://statiz.sporki.com/team/?m=seasonBacknumber&t_code=7002&year=2024', {
             waitUntil: 'networkidle0',
             timeout: 30000
         });
         
-        // 충분한 대기 시간 부여
+        // 네트워크 요청 모니터링
+        await page.setRequestInterception(true);
+        page.on('request', request => {
+            console.log('요청 URL:', request.url());
+            request.continue();
+        });
+        
         await wait(5000);
         
-        // 전체 HTML 구조 확인
-        const bodyHTML = await page.evaluate(() => {
-            return document.body.innerHTML;
-        });
-        console.log('전체 페이지 HTML:', bodyHTML);
-        
-        // 모든 클래스 목록 확인
-        const allClasses = await page.evaluate(() => {
-            const elements = document.getElementsByTagName('*');
-            const classes = new Set();
-            for (let element of elements) {
-                const classList = element.classList;
-                if (classList.length > 0) {
-                    classList.forEach(cls => classes.add(cls));
-                }
-            }
-            return Array.from(classes);
-        });
-        console.log('페이지의 모든 클래스 목록:', allClasses);
-        
-        // 선수 목록을 포함할 것으로 예상되는 컨테이너 확인
-        const containerHTML = await page.evaluate(() => {
-            const container = document.querySelector('#content') || 
-                            document.querySelector('.player-list') ||
-                            document.querySelector('.roster');
-            return container ? container.innerHTML : 'container not found';
-        });
-        console.log('컨테이너 HTML:', containerHTML);
+        // XPath를 사용하여 선수 요소 찾기 시도
+        const playersXPath = await page.$x('//div[contains(@class, "player")]');
+        console.log('XPath로 찾은 선수 수:', playersXPath.length);
         
         await browser.close();
         
