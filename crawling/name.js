@@ -1,101 +1,51 @@
-const puppeteer = require('puppeteer');
-const fs = require('fs');
+const { Builder, By } = require('selenium-webdriver');
+const fs = require('fs');  // fs 모듈 추가 (파일 작업을 위해)
 
-const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+(async function scrapeKBO() {
+    // Chrome 브라우저를 자동으로 열기
+    let driver = await new Builder().forBrowser('chrome').build();
 
-async function crawlPlayerInfo() {
     try {
-        const browser = await puppeteer.launch({
-            headless: false,
-            defaultViewport: null
-        });
-        const page = await browser.newPage();
-        
-        // 웹사이트 접속
-        await page.goto('https://statiz.sporki.com/team/?m=seasonBacknumber&t_code=7002&year=2024', {
-            waitUntil: 'networkidle0',
-            timeout: 30000
-        });
+        // KBO 선수 검색 페이지 열기
+        await driver.get('https://www.koreabaseball.com/Player/Search.aspx');
 
-        await wait(2000); // 페이지 로딩 대기
-        
-        const playerData = [];
-        
-        // item away 요소들 가져오기
-        const players = await page.$$('.item.away');
-        console.log(`총 ${players.length}명의 선수를 찾았습니다.`);
-        
-        for (const player of players) {
-            try {
-                // 등번호 가져오기
-                const number = await player.$eval('.name.t7002 .number', el => el.textContent.trim());
-                console.log(`등번호 ${number} 처리 중...`);
-                
-                // 선수 링크 클릭
-                const playerLink = await player.$('a');
-                const [newPage] = await Promise.all([
-                    new Promise(resolve => browser.once('targetcreated', target => resolve(target.page()))),
-                    playerLink.click()
-                ]);
+        // 페이지 로딩 대기
+        await driver.sleep(2000);
 
-                await newPage.waitForSelector('.p_info', { timeout: 10000 });
-                await wait(1000);
-                
-                // 선수 상세 정보 수집
-                const playerInfo = await newPage.evaluate(() => {
-                    // 기본 정보
-                    const pInfo = document.querySelector('.p_info');
-                    const name = pInfo.querySelector('.name').textContent.trim().split(' (')[0];
-                    const conSpans = pInfo.querySelectorAll('.con span');
-                    const team = conSpans[0].textContent.trim();
-                    const position = conSpans[1].textContent.trim();
-                    const throwHit = conSpans[2].textContent.trim();
-                    
-                    // 상세 정보
-                    const manInfo = document.querySelector('.man_info');
-                    const details = Array.from(manInfo.querySelectorAll('li')).map(li => {
-                        return li.textContent.split(' : ')[1].trim();
-                    });
-                    
-                    return {
-                        name,
-                        team,
-                        position,
-                        throwHit,
-                        birth: details[0],
-                        school: details[1],
-                        draft: details[2],
-                        activeYears: details[3]
-                    };
-                });
+        // 팀 선택 (한화로 설정)
+        const teamSelect = await driver.findElement(By.id("cphContents_cphContents_cphContents_ddlTeam"));
+        await teamSelect.findElement(By.css("option[value='HH']")).click();
 
-                // 수집된 데이터를 배열에 추가
-                playerData.push({
-                    number,
-                    ...playerInfo
-                });
+        // 데이터 로딩 대기
+        await driver.sleep(2000);
 
-                console.log(`${playerInfo.name} 선수 정보 추가 완료`);
-                
-                // 새 페이지 닫기
-                await newPage.close();
-                await wait(1500);
-                
-            } catch (error) {
-                console.error('선수 정보 수집 중 오류 발생:', error);
-                continue;
+        // 테이블 데이터 추출
+        const tableRows = await driver.findElements(By.css("div.inquiry table.tEx tbody tr"));
+
+        let playerData = [];  // 선수 정보를 저장할 배열
+
+        for (let row of tableRows) {
+            const cells = await row.findElements(By.tagName("td"));
+            if (cells.length > 0) {
+                const data = {
+                    "등번호": await cells[0].getText(),
+                    "선수명": await cells[1].getText(),
+                    "팀명": await cells[2].getText(),
+                    "포지션": await cells[3].getText(),
+                    "생년월일": await cells[4].getText(),
+                    "체격": await cells[5].getText(),
+                    "출신교": await cells[6].getText()
+                };
+                playerData.push(data);  // 배열에 데이터 추가
             }
         }
 
-        // 결과를 JSON 파일로 저장
-        fs.writeFileSync('hanwha_players_info.json', JSON.stringify(playerData, null, 2), 'utf-8');
-        console.log(`총 ${playerData.length}명의 선수 정보가 성공적으로 저장되었습니다.`);
-        
-        await browser.close();
-        
-    } catch (error) {
-        console.error('크롤링 중 오류 발생:', error);
-    }
-}
+        // JSON 파일로 저장
+        fs.writeFileSync('players.json', JSON.stringify(playerData, null, 2), 'utf8');
+        console.log('데이터가 players.json 파일에 저장되었습니다.');
 
-crawlPlayerInfo();
+    } finally {
+        // 브라우저 닫기
+        await driver.quit();
+    }
+})();
