@@ -4,6 +4,7 @@ frontend:
         preBuild:
           commands:
                 - 'cd pws'
+                - 'npm install -g next'
                 - 'npm install'
         build:
             commands:
@@ -13,4 +14,6 @@ frontend:
         files:
             - '**/*'
     cache:
-        paths: []
+        paths:
+            - node_modules
+            - pws/.next/cache
