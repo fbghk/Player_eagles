@@ -4,7 +4,8 @@ frontend:
         preBuild:
           commands:
                 - 'cd pws'
-                - 'npm install -g next'
+                - 'rm -rf node_modules'
+                - 'npm cache clean --force'
                 - 'npm install'
         build:
             commands:
