@@ -125,6 +125,31 @@ export default function TeamPlayers() {
                 ? `등번호: ${selectedPlayer.등번호}` 
                 : "등번호가 없습니다."}
             </p>
+            <p>
+              {selectedPlayer.팀명 
+                ? `팀명: ${selectedPlayer.팀명}` 
+                : "팀명 정보가 없습니다."}
+            </p>
+            <p>
+              {selectedPlayer.포지션 
+                ? `포지션: ${selectedPlayer.포지션}` 
+                : "포지션 정보가 없습니다."}
+            </p>
+            <p>
+              {selectedPlayer.생년월일 
+                ? `생년월일: ${selectedPlayer.생년월일}` 
+                : "생년월일 정보가 없습니다."}
+            </p>
+            <p>
+              {selectedPlayer.체격
+                ? `체격: ${selectedPlayer.체격}` 
+                : "체격 정보가 없습니다."}
+            </p>
+            <p>
+              {selectedPlayer.출신교
+                ? `출신교: ${selectedPlayer.출신교}` 
+                : "출신교 정보가 없습니다."}
+            </p>
             <button 
               onClick={closePlayerModal}
               style={{
